@@ -1,0 +1,31 @@
+
+<button id="start">start</button>
+<audio id="output" autoplay></audio>
+<div>serve e.g. using nodejs `npx http-server`</div>
+<script>
+const pc1 = new RTCPeerConnection();
+const pc2 = new RTCPeerConnection();
+pc1.onicecandidate = e => pc2.addIceCandidate(e.candidate);
+pc2.onicecandidate = e => pc1.addIceCandidate(e.candidate);
+pc2.ontrack = e => document.getElementById('output').srcObject = e.streams[0];
+
+const audioContext = new AudioContext();
+document.getElementById('start').onclick = async () => {
+    document.getElementById('start').disabled = true;
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    await audioContext.resume();
+    await audioContext.audioWorklet.addModule('bypass.js');
+    const source = audioContext.createMediaStreamSource(stream);
+    const dest = audioContext.createMediaStreamDestination();
+    const clipper = new AudioWorkletNode(audioContext, 'bypass');
+    source.connect(clipper);
+    clipper.connect(dest);
+    dest.stream.getTracks().forEach(track => pc1.addTrack(track, stream));
+    const offer = await pc1.createOffer();
+    await pc1.setLocalDescription(offer);
+    await pc2.setRemoteDescription(offer);
+    const answer = await pc2.createAnswer();
+    await pc2.setLocalDescription(answer);
+    await pc1.setRemoteDescription(answer);
+};
+</script>
